@@ -1,145 +1,287 @@
+
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import CartButton from "@/components/CartButton";
 
-const links = [
-  { href: "/", label: "Browse" },
+type Student = {
+  id?: number;
+  full_name?: string;
+  email?: string;
+  university?: string | null;
+  campus?: string | null;
+};
+
+const navLinks = [
+  { href: "/", label: "Home" },
   { href: "/list-item", label: "List an Item" },
   { href: "/my-rentals", label: "My Rentals" },
-  { href: "/admin", label: "Admin" },
 ];
-
-function LoginIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-4 w-4"
-      aria-hidden="true"
-    >
-      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-      <path d="M10 17l5-5-5-5" />
-      <path d="M15 12H3" />
-    </svg>
-  );
-}
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const [student, setStudent] = useState<Student | null>(
+    null
+  );
+  const [loggedIn, setLoggedIn] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  useEffect(() => {
+    function updateStudent() {
+      const token = sessionStorage.getItem(
+        "campus_rental_token"
+      );
+
+      const savedUser = sessionStorage.getItem(
+        "campus_rental_user"
+      );
+
+      setLoggedIn(Boolean(token));
+
+      if (token && savedUser) {
+        try {
+          setStudent(JSON.parse(savedUser) as Student);
+        } catch {
+          setStudent(null);
+        }
+      } else {
+        setStudent(null);
+      }
+    }
+
+    updateStudent();
+
+    window.addEventListener(
+      "campus-auth-updated",
+      updateStudent
+    );
+    window.addEventListener("storage", updateStudent);
+    window.addEventListener("focus", updateStudent);
+
+    return () => {
+      window.removeEventListener(
+        "campus-auth-updated",
+        updateStudent
+      );
+      window.removeEventListener("storage", updateStudent);
+      window.removeEventListener("focus", updateStudent);
+    };
+  }, [pathname]);
+
+  function handleLogout() {
+    sessionStorage.removeItem("campus_rental_token");
+    sessionStorage.removeItem("campus_rental_user");
+
+    setStudent(null);
+    setLoggedIn(false);
+    setMenuOpen(false);
+
+    window.dispatchEvent(
+      new Event("campus-auth-updated")
+    );
+
+    router.push("/");
+    router.refresh();
+  }
+
+  const displayName =
+    student?.full_name?.trim() || "Student";
+
+  const initials = displayName
+    .split(/\s+/)
+    .map((word) => word.charAt(0))
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  function isActive(href: string) {
+    return href === "/"
+      ? pathname === "/"
+      : pathname.startsWith(href);
+  }
+
   return (
-    <nav className="border-b border-sage-dark bg-paper">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-4 md:grid md:grid-cols-[1fr_auto_1fr]">
+    <header className="sticky top-0 z-50 border-b border-[#E8E0DE] bg-[#FFFCFA]/95 shadow-sm backdrop-blur-xl">
+      <div className="mx-auto flex min-h-[86px] max-w-[1600px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-12">
+        {/* Brand */}
         <Link
           href="/"
-          className="font-serif text-xl font-semibold text-forest"
           onClick={() => setMenuOpen(false)}
+          className="flex shrink-0 items-center gap-3"
         >
-          Campus Rental Hub
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#20302D] font-serif text-xl font-bold text-white shadow-md">
+            CR
+          </div>
+
+          <div className="leading-tight">
+            <p className="font-serif text-lg font-bold text-[#292422] sm:text-xl">
+              Campus Rental
+            </p>
+            <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.3em] text-[#B95E3E]">
+              Hub
+            </p>
+          </div>
         </Link>
 
-        <div className="hidden items-center gap-6 text-sm font-medium md:flex md:justify-self-center">
-          {links.map((link) => {
-            const isActive = pathname === link.href;
-            return (
+        {/* Desktop navigation */}
+        <nav className="hidden items-center gap-7 lg:flex">
+          {navLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`border-b-2 py-2 text-sm font-semibold transition ${
+                isActive(link.href)
+                  ? "border-[#B95E3E] text-[#B95E3E]"
+                  : "border-transparent text-[#49413E] hover:text-[#B95E3E]"
+              }`}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Desktop account actions */}
+        <div className="hidden items-center gap-3 lg:flex">
+          <CartButton />
+
+          {loggedIn ? (
+            <>
+              <Link
+                href="/profile"
+                className="flex items-center gap-3 rounded-full border border-[#E9E1DD] bg-white px-3 py-2 transition hover:border-[#D3B9A8]"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F8E8DE] text-sm font-bold text-[#B95E3E]">
+                  {initials || "S"}
+                </span>
+
+                <span className="max-w-[150px] text-left">
+                  <span className="block truncate text-sm font-bold text-[#302926]">
+                    {displayName}
+                  </span>
+                  <span className="block text-[11px] text-[#938680]">
+                    View My Profile →
+                  </span>
+                </span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-full bg-[#B95E3E] px-6 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#9D492D]"
+              >
+                Log Out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/register"
+                className="rounded-full border border-[#E5DCD7] bg-white px-6 py-3 text-sm font-semibold text-[#302926] transition hover:bg-[#F8F0EC]"
+              >
+                Sign Up
+              </Link>
+
+              <Link
+                href="/login"
+                className="rounded-full bg-[#B95E3E] px-6 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#9D492D]"
+              >
+                Log In →
+              </Link>
+            </>
+          )}
+        </div>
+
+        {/* Mobile actions */}
+        <div className="flex items-center gap-2 lg:hidden">
+          <CartButton />
+
+          <button
+            type="button"
+            onClick={() => setMenuOpen((current) => !current)}
+            aria-label={
+              menuOpen ? "Close navigation" : "Open navigation"
+            }
+            aria-expanded={menuOpen}
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#E9E1DD] bg-white text-2xl text-[#302926]"
+          >
+            {menuOpen ? "×" : "☰"}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile menu */}
+      {menuOpen && (
+        <div className="border-t border-[#E9E1DD] bg-[#FFFCFA] px-5 pb-6 pt-4 shadow-lg lg:hidden">
+          <nav className="flex flex-col gap-2">
+            {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={
-                  isActive
-                    ? "text-forest underline decoration-2 underline-offset-4"
-                    : "text-forest/60 hover:text-forest"
-                }
+                onClick={() => setMenuOpen(false)}
+                className={`rounded-xl px-4 py-3 text-sm font-semibold ${
+                  isActive(link.href)
+                    ? "bg-[#F8E8DE] text-[#B95E3E]"
+                    : "text-[#302926] hover:bg-[#F8F0EC]"
+                }`}
               >
                 {link.label}
               </Link>
-            );
-          })}
-        </div>
+            ))}
 
-        <div className="hidden md:flex md:justify-end">
-          <Link
-            href="/login"
-            className="flex items-center gap-2 rounded-md bg-forest px-4 py-2 text-sm font-medium text-paper shadow-sm transition-transform duration-150 hover:scale-105 hover:bg-forest-light hover:shadow-md"
-          >
-            <LoginIcon />
-            Log In
-          </Link>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setMenuOpen((open) => !open)}
-          aria-label="Toggle menu"
-          aria-expanded={menuOpen}
-          className="flex h-9 w-9 items-center justify-center rounded-md text-forest hover:bg-sage md:hidden"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-6 w-6"
-            aria-hidden="true"
-          >
-            {menuOpen ? (
-              <>
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-              </>
-            ) : (
-              <>
-                <path d="M4 6h16" />
-                <path d="M4 12h16" />
-                <path d="M4 18h16" />
-              </>
-            )}
-          </svg>
-        </button>
-      </div>
-
-      {menuOpen && (
-        <div className="border-t border-sage-dark px-6 py-4 md:hidden">
-          <div className="flex flex-col gap-4 text-sm font-medium">
-            {links.map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMenuOpen(false)}
-                  className={
-                    isActive
-                      ? "text-forest underline decoration-2 underline-offset-4"
-                      : "text-forest/60 hover:text-forest"
-                  }
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
             <Link
-              href="/login"
+              href="/cart"
               onClick={() => setMenuOpen(false)}
-              className="flex items-center justify-center gap-2 rounded-md bg-forest px-4 py-2 text-sm font-medium text-paper shadow-sm hover:bg-forest-light"
+              className="rounded-xl px-4 py-3 text-sm font-semibold text-[#302926] hover:bg-[#F8F0EC]"
             >
-              <LoginIcon />
-              Log In
+              Shopping Cart
             </Link>
+          </nav>
+
+          <div className="mt-4 border-t border-[#E9E1DD] pt-4">
+            {loggedIn ? (
+              <div className="flex flex-col gap-3">
+                <Link
+                  href="/profile"
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-xl bg-[#F8F0EC] px-4 py-3 text-sm font-semibold text-[#302926]"
+                >
+                  My Profile — {displayName}
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-xl bg-[#B95E3E] px-5 py-3 text-sm font-bold text-white"
+                >
+                  Log Out
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <Link
+                  href="/register"
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-xl border border-[#E5DCD7] px-5 py-3 text-center text-sm font-semibold"
+                >
+                  Sign Up
+                </Link>
+
+                <Link
+                  href="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-xl bg-[#B95E3E] px-5 py-3 text-center text-sm font-bold text-white"
+                >
+                  Log In
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}
-    </nav>
+    </header>
   );
 }
